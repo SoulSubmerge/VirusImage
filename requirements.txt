@@ -1,3 +1,4 @@
 tourch
 tourchvision
 tourchaudio
+pandas

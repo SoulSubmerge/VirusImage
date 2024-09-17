@@ -1,0 +1,12 @@
+script finetune
+datadir ./dataset/finetuning
+dataset H1N1_2data
+gpu 0
+image_size 224
+resume ./weights/pretrain/pretrain.pt
+only_save_best
+save_model_dir ./weights/finetune/H1N1
+model_type resnet18AndMultiHeadAttention
+loss_function mse
+log_dir ./logs/H1N1
+batch 8

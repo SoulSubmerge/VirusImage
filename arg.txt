@@ -1,3 +1,0 @@
-name ok
-flag
-enhance_list finetune,evaluate,xxxxxxx

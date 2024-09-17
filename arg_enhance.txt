@@ -1,0 +1,9 @@
+script image_enhance
+datadir ./dataset/finetuning
+dataset H1N1_2data
+enhance_save_path ./dataset/finetuning/H1N1_2data
+preserve_original_data
+enhance_list flip_horizontal,flip_vertical,rotation_[20-80],rotation_[110-160],rotation_[200-250],rotation_[270-340],sp_noise
+enhance_rule label>0.5
+sp_noise_scale 0.01
+worker 5

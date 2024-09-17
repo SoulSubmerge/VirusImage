@@ -1,5 +1,6 @@
 import argparse
 import os
+from tools.tools import inferType
 
 
 class ParseArgs():
@@ -14,11 +15,35 @@ class ParseArgs():
         self.parser.add_argument("--datset", type=str, default=None, help="A folder of data that needs to be trained(or finetuning) and evaluated is the name of the data. There should be a corresponding csv file under the folder, named after train, test, val, and evaluate. eg. H1N1 -> train.csv test.csv val.csv evaluate.csv")
         self.parser.add_argument("--gpu", type=str, default='0', help="Index of GPU to use.")
         self.parser.add_argument("--script", type=str, default=None, choices=self.scripts, help="Scripts related to tasks that need to be executed.")
+        # self.parser.add_argument("--csv_split_symbol", type=str, default=',', help="")
+        self.parser.add_argument("--worker", type=int, default=1, help="The number of threads executing tasks, used for data processing and some tasks that can be parallelized.")
+        self.parser.add_argument("--image_size", type=int, default=224, help="Image size")
+        self.parser.add_argument("--log_dir", type=str, default=None, help="Log directory.")
 
         # enhance script
         self.parser.add_argument("--enhance_list", type=str, default=None, help="The direction that needs to be enhanced. eg. enhance1,enhance2,...")
         self.parser.add_argument("--enhance_save_path", type=str, default=None, help="The location where the enhanced results need to be saved.")
         self.parser.add_argument("--preserve_original_data", type=bool, default=True, help="Whether to retain the original data in the enhanced results.")
+        self.parser.add_argument("--enhance_rule", type=str, default=None, help="The data needs to be correct to meet what requirements.")
+        self.parser.add_argument("--sp_noise_scale", type=lambda x: float(x) if 0 <= float(x) <= 1 else argparse.ArgumentTypeError(f"{x} is an invalid value. It must be between 0 and 1."), default=0.3, help="The ratio of noise to be added, [0-1].")
+
+
+        # finetune script
+        self.parser.add_argument("--resume", type=str, default=None, help="The path of the pre-trained model.")
+        self.parser.add_argument("--only_save_best", type=bool, default=False, help="Save only the best models.")
+        self.parser.add_argument("--save_model_dir", type=str, default=None, help="Model save directory")
+        self.parser.add_argument("--model_type", type=str, default=None, choices=["resnet18AndMultiHeadAttention"], help="The model network needs to be loaded.")
+        self.parser.add_argument("--loss_function", type=str, default=None, help="Loss function used.")
+        self.parser.add_argument("--batch", type=int, default=64, help="batch")
+        self.parser.add_argument("--epoch", type=int, default=50)
+        self.parser.add_argument("--start_epoch", type=int, default=0)
+        self.parser.add_argument("--early_stop", type=int, default=20)
+        self.parser.add_argument("--num_classes", type=int, default=1)
+
+        # optimizer
+        self.parser.add_argument('--lr', default=0.0001, type=float, help='learning rate (default: 0.01)')
+        self.parser.add_argument('--weight_decay', default=-5, type=float, help='weight decay pow (default: -5)')
+        self.parser.add_argument('--momentum', default=0.9, type=float, help='moment um (default: 0.9)')
 
 
         self.argKeys = self.argsToAttr()
@@ -38,6 +63,14 @@ class ParseArgs():
             pass
         else:
             self.parseConfigFile()
+        for key in self.argKeys:
+            if isinstance(self[key], list):
+                for idx, v in enumerate(self[key]):
+                    self[key][idx] = inferType(v)
+            elif isinstance(self[key], str):
+                self[key] = inferType(self[key])
+            else:
+                pass
 
     # If --in is set, the corresponding configuration file is parsed.
     def parseConfigFile(self) -> None:
