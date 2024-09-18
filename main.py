@@ -12,7 +12,7 @@ def registerScript(args: ParseArgs) -> None:
         imageEnhance = ImageEnhance(args=args)
         imageEnhance.run()
     elif args.script == "finetune":
-        dontNoneList = dontNoneList + ['gpu','image_size', 'only_save_best', 'save_model_dir', 'log_dir', 'model_type', 'loss_function', 'lr', 'weight_decay', 'momentum', 'batch', 'epoch','num_classes', 'eval_rule']
+        dontNoneList = dontNoneList + ['gpu','image_size', 'only_save_best', 'save_model_dir', 'log_dir', 'model_type', 'loss_function', 'lr', 'weight_decay', 'momentum', 'batch', 'epoch','num_classes', 'eval_threshold']
         for checkArg in dontNoneList:
             assert not (args[checkArg] is None), "{} cannot be None.".format(checkArg)
         print(args)

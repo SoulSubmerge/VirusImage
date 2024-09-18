@@ -7,6 +7,7 @@ import torchvision.transforms as transforms
 import pandas as pd
 from typing import List, Dict
 from tools.tools import evaluateRule
+import time
 
 class Finetune():
     def __init__(self, args:ParseArgs) -> None:
@@ -53,7 +54,7 @@ class Finetune():
         self.test_total = len(self.test_dataloader.dataset)
         self.test_steps = len(self.test_dataloader)
 
-        # self.model = self.model.cuda()
+        self.model = self.model.cuda()
         if len(self.device_ids) > 1:
             self.model = torch.nn.DataParallel(self.model, device_ids=self.device_ids)
         self.optimizer = torch.optim.SGD(
@@ -125,8 +126,9 @@ class Finetune():
     def train(self, epoch:int):
         self.model.train()
         self.optimizer.zero_grad()
-        torch.autograd.set_detect_anomaly(True)
+        # torch.autograd.set_detect_anomaly(True)
         for step, data in enumerate(self.train_dataloader):
+            # torch.cuda.empty_cache()
             images, labels, dataInfos = data
             images = images.to(self.device)
             labels = labels.to(self.device)
@@ -147,24 +149,52 @@ class Finetune():
     def outputTrainInfo(self, params:dict) -> dict:
         scale = params["step"] / self.train_steps
         scale = 1 if scale > 1 else scale
-        ppv, tp, fp = self.evaluatePPV(params["pred"], params["label"])
-        outputInfo = "[ep:{} loss:{} ppv:{}] {}| {}/{}       ".format(params["epoch"], params["loss"], ppv,"👉"*int(30*scale),params["step"], self.train_steps)
-        print(outputInfo)
+        ppv, tp, fp, tn, fn = self.evaluatePPV(params["pred"], params["label"])
+        outputInfo = "[ep:{} loss:{:.6f} ppv:{:.2f}] {}| {}/{}       ".format(params["epoch"], params["loss"], ppv,"👉"*int(30*scale),params["step"], self.train_steps)
+        print("\r{}".format(outputInfo), end='')
 
     def evaluatePPV(self, preds, labels):
         preds = preds.tolist()
         labels = labels.tolist()
         TP = 0
         FP = 0
+        TN = 0
+        FN = 0
         for p,l in zip(preds,labels):
-            if evaluateRule(self.args.eval_rule, {"pred":p, "label":l}):
+            if p[0] >= self.args.eval_threshold and l[0] >= self.args.eval_threshold:
                 TP += 1
-            else:
+            elif p[0] >= self.args.eval_threshold and l[0] < self.args.eval_threshold:
                 FP += 1
-        return TP/(TP+FP), TP, FP
+            elif p[0] < self.args.eval_threshold and l[0] < self.args.eval_threshold:
+                TN += 1
+            elif p[0] < self.args.eval_threshold and l[0] >= self.args.eval_threshold:
+                FN += 1
+        return TP/(TP+FP) if (TP+FP) > 0 else 0, TP, FP, TN, FN
 
-    def evaluateTrain(self):
-        pass
+    def evaluateTrain(self, epoch=-1):
+        self.model.eval()
+        TP = 0
+        FP = 0
+        TN = 0
+        FN = 0
+        with torch.no_grad():
+            for step, data in enumerate(self.train_dataloader):
+                images, labels, dataInfos = data
+                images = images.to(self.device)
+                labels = labels.to(self.device)
+                pred = self.model(images)
+                labels = labels.view(pred.shape).to(torch.float64)
+                predCpu = pred.cpu()
+                labelsCpu = labels.cpu()
+                ppv, tp, fp, tn, fn = self.evaluatePPV(preds=predCpu, labels=labelsCpu)
+                TP += tp
+                FP += fp
+                TN += tn
+                FN += fn
+        ppv = TP/(TP+FP) if TP+FP > 0 else 0
+        print("\n [{}] train PPV:{} TP:{} FP:{} TN:{} FN:{}".format(epoch, ppv, TP, FP, TN, FN))
+        return "{}_{}_{}_{}_{}".format(int(ppv*100), TP,FP,TN,FN)
+
 
     def evaluateVal(self):
         pass
@@ -177,11 +207,18 @@ class Finetune():
             # 训练
             self.train(epoch=ep)
             # 评估
-            self.evaluate_train()
-            self.evaluate_val()
-            self.evaluate_test()
+            evalTrainRes = self.evaluateTrain(epoch=ep)
+            model_cpu = {k: v.cpu() for k,v in self.model.state_dict().items()}
+            state = {
+                'epoch': ep,
+                'model_state_dict': model_cpu
+            }
+            modelPath = os.path.join("./weights/finetune/H1N1", "{}_{}_{}.pt".format(ep, int(time.time()), evalTrainRes))
+            torch.save(state, modelPath)
+            print("save path:{}".format(modelPath))
+            self.evaluateVal()
+            self.evaluateTest()
             # 计算PPV
             # 根据策略计算数据
             # 根据策略保存模型
             # 保存日志
-            pass
