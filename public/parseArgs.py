@@ -39,6 +39,7 @@ class ParseArgs():
         self.parser.add_argument("--start_epoch", type=int, default=0)
         self.parser.add_argument("--early_stop", type=int, default=20)
         self.parser.add_argument("--num_classes", type=int, default=1)
+        self.parser.add_argument("--eval_rule", type=str, default=None)
 
         # optimizer
         self.parser.add_argument('--lr', default=0.0001, type=float, help='learning rate (default: 0.01)')

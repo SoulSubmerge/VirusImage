@@ -9,4 +9,5 @@ save_model_dir ./weights/finetune/H1N1
 model_type resnet18AndMultiHeadAttention
 loss_function mse
 log_dir ./logs/H1N1
-batch 8
+batch 4
+eval_rule pred[0]>0.3 and label[0]>0.3

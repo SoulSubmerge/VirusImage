@@ -1,4 +1,4 @@
-tourch
-tourchvision
-tourchaudio
+torch
+torchvision
+torchaudio
 pandas

@@ -5,6 +5,8 @@ import os
 from utils.imageDataLoader import ImageDataset
 import torchvision.transforms as transforms
 import pandas as pd
+from typing import List, Dict
+from tools.tools import evaluateRule
 
 class Finetune():
     def __init__(self, args:ParseArgs) -> None:
@@ -32,17 +34,26 @@ class Finetune():
                                                    shuffle=True,
                                                    num_workers=self.args.worker,
                                                    pin_memory=True)
+        self.train_total = len(self.train_dataloader.dataset)
+        self.train_steps = len(self.train_dataloader)
+
         self.val_dataloader = torch.utils.data.DataLoader(self.val_dataset,
                                                     batch_size=self.args.batch,
                                                     shuffle=False,
                                                     num_workers=self.args.worker,
                                                     pin_memory=True)
+        self.val_total = len(self.val_dataloader.dataset)
+        self.val_steps = len(self.train_dataloader)
+
         self.test_dataloader = torch.utils.data.DataLoader(self.test_dataset,
                                                     batch_size=self.args.batch,
                                                     shuffle=False,
                                                     num_workers=self.args.worker,
                                                     pin_memory=True)
-        self.model = self.model.cuda()
+        self.test_total = len(self.test_dataloader.dataset)
+        self.test_steps = len(self.test_dataloader)
+
+        # self.model = self.model.cuda()
         if len(self.device_ids) > 1:
             self.model = torch.nn.DataParallel(self.model, device_ids=self.device_ids)
         self.optimizer = torch.optim.SGD(
@@ -52,7 +63,7 @@ class Finetune():
             weight_decay=10 ** self.args.weight_decay,
         )
 
-    def loadDataInfos(self, dataType:str) -> list[dict]:
+    def loadDataInfos(self, dataType:str) -> List[Dict]:
         if dataType == "train":
             dataPathcsv = os.path.join(self.args.datadir, self.args.dataset, "{}_train.csv".format(self.args.dataset))
             dataPathxlsx = os.path.join(self.args.datadir, self.args.dataset, "{}_train.xlsx".format(self.args.dataset))
@@ -111,7 +122,7 @@ class Finetune():
         list_ids = list(range(n_gpu_use))
         return device, list_ids
 
-    def train(self):
+    def train(self, epoch:int):
         self.model.train()
         self.optimizer.zero_grad()
         torch.autograd.set_detect_anomaly(True)
@@ -125,21 +136,46 @@ class Finetune():
             loss.backward()
             self.optimizer.step()
             self.optimizer.zero_grad()
-            print(loss)
+
+            accLoss = loss.detach()
+            predCpu = pred.cpu()
+            labelsCpu = labels.cpu()
+            evalParams = {"loss":accLoss.item(), "pred":predCpu, "label":labelsCpu, "epoch":epoch, "step":step+1, "dataInfos":dataInfos}
+            # print(accLoss, predCpu, labelsCpu)
+            self.outputTrainInfo(params=evalParams)
     
-    def evaluate_train(self):
+    def outputTrainInfo(self, params:dict) -> dict:
+        scale = params["step"] / self.train_steps
+        scale = 1 if scale > 1 else scale
+        ppv, tp, fp = self.evaluatePPV(params["pred"], params["label"])
+        outputInfo = "[ep:{} loss:{} ppv:{}] {}| {}/{}       ".format(params["epoch"], params["loss"], ppv,"👉"*int(30*scale),params["step"], self.train_steps)
+        print(outputInfo)
+
+    def evaluatePPV(self, preds, labels):
+        preds = preds.tolist()
+        labels = labels.tolist()
+        TP = 0
+        FP = 0
+        for p,l in zip(preds,labels):
+            if evaluateRule(self.args.eval_rule, {"pred":p, "label":l}):
+                TP += 1
+            else:
+                FP += 1
+        return TP/(TP+FP), TP, FP
+
+    def evaluateTrain(self):
         pass
 
-    def evaluate_val(self):
+    def evaluateVal(self):
         pass
 
-    def evaluate_test(self):
+    def evaluateTest(self):
         pass
 
     def run(self):
         for ep in range(self.args.start_epoch, self.args.epoch):
             # 训练
-            self.train()
+            self.train(epoch=ep)
             # 评估
             self.evaluate_train()
             self.evaluate_val()

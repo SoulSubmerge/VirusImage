@@ -2,9 +2,10 @@ from torch.utils.data import Dataset
 import os
 from public.parseArgs import ParseArgs
 from PIL import Image
+from typing import List, Dict
 
 class ImageDataset(Dataset):
-    def __init__(self, datas:list[dict], datadir:str, img_transformer, normalize=None):
+    def __init__(self, datas:List[Dict], datadir:str, img_transformer, normalize=None):
         self.dataDict = datas
         self.normalize = normalize
         self.total = len(self.dataDict)
